@@ -1,16 +1,97 @@
-export const App = () => {
-  return (
-    <div
-      style={{
-        height: '100vh',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        fontSize: 40,
-        color: '#010101'
-      }}
-    >
-      React homework template
-    </div>
-  );
-};
+import { Component } from 'react';
+import css from './Services/styles.module.css';
+import { requestImagesByQuery } from './Services/api';
+import { Searchbar } from './Searchbar/Searchbar';
+import { ImageGallery } from './ImageGallery/ImageGallery';
+import { STATUSES } from './Services/statuses';
+import { Modal } from './Modal/Modal';
+import { Button } from './Button/Button';
+import { Loader } from './Loader/Loader';
+
+export class App extends Component {
+  state = {
+    images: [],
+    status: STATUSES.idle,
+    query: '',
+    error: null,
+    isLoadMore: false,
+    isOpenModal: false,
+    modalData: [],
+    page: 1,
+    isEmpty: false,
+  };
+
+  fetchImagesByQuery = async (query, page) => {
+    try {
+      const images = await requestImagesByQuery(query, page);
+      return images;
+    } catch (error) {
+      this.setState({ error: error.message });
+    }
+  };
+
+  async componentDidUpdate(_, prevState) {
+    const { page, query } = this.state;
+    if (page !== prevState.page || prevState.query !== query) {
+      try {
+        this.setState({ status: STATUSES.pending });
+        const { hits, totalHits } = await this.fetchImagesByQuery(query, page);
+        this.setState(prevState => ({
+          images: [...prevState.images, ...hits],
+          isLoadMore: this.state.page < Math.ceil(totalHits / 12),
+          status: STATUSES.success,
+        }));
+      } catch (error) {
+        this.setState({ error: error.message, status: STATUSES.error });
+      }
+    }
+  }
+
+  handleSubmit = event => {
+    event.preventDefault();
+    const inputValue = event.currentTarget.elements.searchInput.value;
+    this.setState({ query: inputValue, images: [], page: 1 });
+  };
+
+  handleLoadMore = () => {
+    this.setState(prevState => ({
+      page: prevState.page + 1,
+    }));
+  };
+
+  handleOpenModal = (largeImageURl, tags) => {
+    this.setState({
+      modalData: { largeImageURl, tags },
+      isOpenModal: true,
+    });
+  };
+
+  handleCloseModal = () => {
+    this.setState({
+      isOpenModal: false,
+    });
+  };
+
+  render() {
+    const { isLoadMore, isOpenModal, status } = this.state;
+    return (
+      <div className={css.App}>
+        <Searchbar onSubmit={this.handleSubmit} />
+        <ImageGallery
+          images={this.state.images}
+          onImageClick={this.handleOpenModal}
+        />
+        {status === STATUSES.pending && <Loader />}
+        {isOpenModal && (
+          <Modal
+            isOpenModal={isOpenModal}
+            onCloseModal={this.handleCloseModal}
+            modalData={this.state.modalData}
+          />
+        )}
+
+        {isLoadMore && <Button handleLoadMore={this.handleLoadMore} />}
+      </div>
+    );
+  }
+}
