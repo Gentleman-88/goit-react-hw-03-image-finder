@@ -5,6 +5,6 @@ const Button = ({ handleLoadMore }) => {
             Load more
         </button>
     );
-}
+};
 
 export { Button };
